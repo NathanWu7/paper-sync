@@ -83,6 +83,7 @@ async function loadSegments(file) {
   $("#current-file").textContent = file;
   wrap.classList.remove("reveal"); void wrap.offsetWidth; wrap.classList.add("reveal");
   if (window.loadChatHistory) loadChatHistory(file);
+  if (window.loadFormulaHistory) loadFormulaHistory(file);
 }
 
 function buildRow(seg) {

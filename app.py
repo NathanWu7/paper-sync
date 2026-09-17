@@ -624,10 +624,13 @@ async def api_setup(req: SetupReq):
         return {"ok": True, "repo": str(RT.repo), "slug": RT.slug, "files": len(RT.tex_files)}
 
 
-# ---------- 章节对话 ----------
+# ---------- 章节对话 / 公式校对 ----------
 
 import chapter_chat  # noqa: E402 —— 放在文件末尾导入，避免循环依赖
 app.include_router(chapter_chat.router)
+
+import formula  # noqa: E402
+app.include_router(formula.router)
 
 
 # ---------- 静态 ----------
