@@ -351,6 +351,22 @@ pre.raw {
   background: var(--sheet); border: 1px solid var(--hairline); border-radius: 6px;
   padding: 12px 16px; position: relative;
 }
+.f-loc {
+  font: 500 11.5px var(--font-ui); color: var(--slate);
+  background: #E9EDF3; border-radius: 4px;
+  padding: 3px 9px; margin-bottom: 10px;
+  display: inline-block; cursor: help;
+}
+.f-where {
+  font: 400 12.5px/1.7 var(--font-ui); color: var(--slate);
+  margin: 8px 0 2px; white-space: pre-wrap; word-break: break-word;
+}
+.f-loc-label { font: 500 11.5px var(--font-ui); color: var(--ink-3); margin: 8px 0 4px; }
+.f-loc-list { display: flex; flex-direction: column; gap: 3px; margin-bottom: 6px; }
+.f-loc-item {
+  font: 400 12px/1.6 var(--font-ui); color: var(--slate);
+  background: #E9EDF3; border-radius: 4px; padding: 3px 9px; cursor: help;
+}
 .f-formula {
   font: 400 14.5px var(--font-en); padding: 6px 0 10px;
   text-align: center; overflow-x: auto;

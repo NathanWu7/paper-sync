@@ -24,32 +24,37 @@ router = APIRouter()
 ANALYZE_SYS = r"""You are a careful formula proofreader for a LaTeX paper. The author feels the formulas are too casual and wants human-level scrutiny.
 {mode}
 
-Context format: segments with idx, kind, a text snippet, and the LaTeX formulas inside.
+Context format: segments with idx, heading (the section title above the segment), a text snippet, and the LaTeX formulas inside.
 
 Rules — follow strictly:
 1. Work ONLY with the formulas given. Do not invent formulas.
 2. The "formula" field must be the EXACT LaTeX string as given (copy it character by character).
 3. All analysis in Chinese.
 4. If you find real problems (dimension mismatch, undefined symbols, sloppy notation, wrong indexing), list them explicitly in "issue" — do not be polite about it.
-5. Output STRICT JSON only, no prose, no code fences."""
+5. Output STRICT JSON only, no prose, no code fences.
+6. Location precision: in the "where" field, cite the specific paragraph and sentence(s) involved — e.g. 「位于段 3（标题 Related Work 之下、以 'We build on…' 开头的段落）的第 2 句 "…"」。If the problem spans multiple segments, list EVERY segment and the exact phrase involved in each."""
 
 MODE_NUMERIC = """For EACH formula, produce:
 - meaning: what the formula computes; what each quantity means (with units when applicable).
 - example: a concrete numeric instantiation. Choose plausible example values for the inputs and compute the result step by step with actual numbers. If the formula involves vectors or matrices, construct a small concrete example yourself (e.g. 2-dim vectors or 2x2 matrices) and carry the computation through — do not ask the user for values.
 - issue: any error, sloppiness, or ambiguity found; empty string "" if none.
-Output: {"results": [{"idx": <int>, "formula": "<exact>", "meaning": "...", "example": "...", "issue": "..."}]}"""
+- where: which paragraph (segment idx + heading + sentence) the formula lives in; if the issue relates to other segments, list all of them with the exact phrases. Empty string "" if no issue.
+Output: {"results": [{"idx": <int>, "formula": "<exact>", "meaning": "...", "example": "...", "issue": "...", "where": "..."}]}"""
 
 MODE_VECTOR = """Only for formulas that involve vectors or matrices: construct a small concrete example yourself (e.g. 2-dim vectors or 2x2 matrices with explicit numbers), compute the result step by step, and explain the geometric or algebraic meaning. Skip scalar-only formulas (do not include them in results).
-Output: {"results": [{"idx": <int>, "formula": "<exact>", "example": "...", "issue": "..."}]}"""
+For each result also fill "where": which paragraph (segment idx + heading + sentence) the formula lives in; if related to other segments, list all of them with the exact phrases.
+Output: {"results": [{"idx": <int>, "formula": "<exact>", "example": "...", "issue": "...", "where": "..."}]}"""
 
 MODE_VISUAL = """For EACH formula, produce its meaning and a standalone SVG visualization (a sketch of the geometry, a small plot of the function, a diagram of the computation flow — whatever best conveys the formula's meaning). SVG rules: viewBox "0 0 460 300"; clean minimal design; background #FBFBF8; ink #21241F; accent #B53A2B; grid/axis lines #D8DBD5; English labels only; no scripts, no external references, no text outside the viewBox; keep labels short.
 Output: {"results": [{"idx": <int>, "formula": "<exact>", "meaning": "...", "svg": "<svg ...>...</svg>"}]}"""
 
-MODE_CONSISTENCY = """Below are ALL formulas in the paper (file + segment idx). Some quantity symbols appear as bare LaTeX macros without math delimiters (e.g. \\mathcal{B} in running text) — treat them as symbols too. Find groups of formulas that express the SAME mathematical meaning but use INCONSISTENT symbols or notation (e.g. the same quantity written as U_k in one place and U in another; $B$ vs \\mathcal{B}; the same operation denoted differently). For each group: name the quantity, list the exact formula strings that conflict, explain the inconsistency, and propose ONE unified notation. Only report real conflicts; if none, return an empty groups array and say so in summary.
-Output: {"groups": [{"name": "...", "formulas": ["<exact 1>", "<exact 2>"], "issue": "...", "suggestion": "..."}], "summary": "..."}"""
+MODE_CONSISTENCY = """Below are ALL formulas in the paper, each with its file, segment idx, section heading, a text snippet of the paragraph it lives in, and the formula. Some quantity symbols appear as bare LaTeX macros without math delimiters (e.g. \\mathcal{B} in running text) — treat them as symbols too.
+Find groups of formulas that express the SAME mathematical meaning but use INCONSISTENT symbols or notation (e.g. the same quantity written as U_k in one place and U in another; $B$ vs \\mathcal{B}; the same operation denoted differently). For each group: name the quantity, list the exact formula strings that conflict, explain the inconsistency, propose ONE unified notation, and fill "where": cite every paragraph (file + segment idx + heading + sentence/phrase) where each conflicting formula appears — the reader must be able to locate every occurrence.
+Only report real conflicts; if none, return an empty groups array and say so in summary.
+Output: {"groups": [{"name": "...", "formulas": ["<exact 1>", "<exact 2>"], "issue": "...", "suggestion": "...", "where": "..."}], "summary": "..."}"""
 
-CHAT_SYS = r"""You are a formula consultant for a LaTeX paper. Below are the formulas in the current chapter (with segment idx).
-Answer the user's question about these formulas in Chinese, precisely and concretely. If the user asks to fix or improve a formula, propose corrections as fixes.
+CHAT_SYS = r"""You are a formula consultant for a LaTeX paper. Below are the formulas in the current chapter (each with segment idx, section heading and a snippet).
+Answer the user's question about these formulas in Chinese, precisely and concretely. When you discuss problems, cite the specific segment idx, heading and the exact sentence involved. If the user asks to fix or improve a formula, propose corrections as fixes.
 Output STRICT JSON: {"reply": "...", "fixes": [{"idx": <int>, "old": "<exact formula LaTeX as given>", "new": "<corrected formula LaTeX>", "note": "..."}]}
 fixes is empty when no correction is proposed. The "old" string must be copied EXACTLY from the given formulas."""
 
@@ -94,34 +99,70 @@ def extract_formulas(text: str) -> list[str]:
     return out
 
 
-def chapter_formulas(file: str) -> list[dict]:
+def _clean_heading(tex: str) -> str:
+    r"""\section{Related Work} → Related Work（取花括号内文字，去掉残留结构）。"""
+    t = re.sub(r"\\(?:section|subsection|subsubsection|title)\{([^}]*)\}", r"\1", tex)
+    t = re.sub(r"[{}]", "", t)
+    return t.strip()[:80]
+
+
+def _file_formula_rows(file: str) -> list[dict]:
+    """某文件的含公式段落行：每行带 idx/kind/heading(最近的小节标题)/snippet/公式列表。"""
     A = _A()
     rows = []
+    heading = ""
     for s in A.RT.state.segs(file):
+        if s["kind"] == "heading":
+            heading = _clean_heading(s["en"])
+            continue
         fs = extract_formulas(s["en"])
         if fs:
-            rows.append({"idx": s["idx"], "kind": s["kind"],
-                         "snippet": s["en"][:160], "formulas": fs})
+            rows.append({"idx": s["idx"], "kind": s["kind"], "heading": heading,
+                         "snippet": s["en"][:300], "formulas": fs})
     return rows
+
+
+def chapter_formulas(file: str) -> list[dict]:
+    return _file_formula_rows(file)
 
 
 def paper_formulas(limit: int = 150) -> list[dict]:
     A = _A()
     items = []
     for rel in A.RT.tex_files:
-        for s in A.RT.state.segs(rel):
-            seen = set(extract_formulas(s["en"]))
+        for r in _file_formula_rows(rel):
+            seen = set(r["formulas"])
             # 裸数学宏也纳入一致性扫描（\mathcal{B} 与 B 这类冲突常以裸宏形式出现）
-            for m in BARE_RE.finditer(s["en"]):
+            for m in BARE_RE.finditer(A.RT.state.segs(rel)[r["idx"]]["en"]):
                 f = m.group(0).strip()
                 if len(f) >= 4 and f not in seen:
                     seen.add(f)
             for f in seen:
                 if len(f) <= 300:
-                    items.append({"file": rel, "idx": s["idx"], "formula": f})
+                    items.append({"file": rel, "idx": r["idx"], "heading": r["heading"],
+                                  "snippet": r["snippet"], "formula": f})
         if len(items) >= limit:
             break
     return items[:limit]
+
+
+def _loc_rows(rows: list[dict], idx: int) -> dict | None:
+    """段级位置信息：段落编号 + 所在小节标题 + 原文开头片段。"""
+    for r in rows:
+        if r["idx"] == idx:
+            return {"idx": idx, "heading": r["heading"], "snippet": r["snippet"][:90]}
+    return None
+
+
+def _group_locations(items: list[dict], formula: str) -> list[dict]:
+    """公式串在全篇的出现位置（精确匹配，失败则退化为包含匹配）。"""
+    locs = [{"file": i["file"], "idx": i["idx"], "heading": i["heading"],
+             "snippet": i["snippet"][:90]} for i in items if i["formula"] == formula]
+    if locs:
+        return locs
+    return [{"file": i["file"], "idx": i["idx"], "heading": i["heading"],
+             "snippet": i["snippet"][:90]} for i in items
+            if i["formula"] in formula or formula in i["formula"]][:5]
 
 
 # ---------- 历史 ----------
@@ -191,16 +232,30 @@ async def formula_analyze(req: AnalyzeReq):
         if not items:
             return {"ok": True, "mode": req.mode, "reply": "论文里没有找到公式。",
                     "results": [], "groups": []}
-        ctx = "\n".join(f"[{i['file']}#{i['idx']}] {i['formula']}" for i in items)
+        ctx = "\n".join(
+            f"[{i['file']}#{i['idx']}] heading={i['heading'] or '-'} | "
+            f"snippet: {i['snippet']} | formula: {i['formula']}" for i in items)
         data = await _ask_json(client, model, ANALYZE_SYS.format(mode=MODE_CONSISTENCY),
                                f"Paper formulas ({len(items)}):\n{ctx}")
         reply = str(data.get("summary") or "").strip()
+        groups = data.get("groups") or []
+        # 后端确定性附加：每个冲突公式在全篇的出现位置
+        for g in groups:
+            locs = []
+            for f in (g.get("formulas") or []):
+                locs.extend(_group_locations(items, f))
+            seen, uniq = set(), []
+            for l in locs:
+                if (l["file"], l["idx"]) not in seen:
+                    seen.add((l["file"], l["idx"]))
+                    uniq.append(l)
+            g["locations"] = uniq[:6]
         msg = {"role": "assistant", "content": reply,
-               "data": {"mode": req.mode, "groups": data.get("groups") or []}, "ts": _now()}
+               "data": {"mode": req.mode, "groups": groups}, "ts": _now()}
         hist = load_history(req.file)
         save_history(req.file, (hist + [msg])[-100:])
         return {"ok": True, "mode": req.mode, "reply": reply,
-                "results": [], "groups": data.get("groups") or [], "total": len(items)}
+                "results": [], "groups": groups, "total": len(items)}
 
     if req.mode not in ("numeric", "vector", "visualize"):
         raise HTTPException(400, "未知分析模式")
@@ -213,12 +268,17 @@ async def formula_analyze(req: AnalyzeReq):
         return {"ok": True, "mode": req.mode, "reply": "本章没有找到公式。",
                 "results": [], "groups": []}
     ctx = "\n\n".join(
-        f"[idx={r['idx']} kind={r['kind']}] snippet: {r['snippet']}\n"
+        f"[idx={r['idx']} heading={r['heading'] or '-'}] snippet: {r['snippet']}\n"
         f"formulas: {json.dumps(r['formulas'], ensure_ascii=False)}" for r in rows)
     mode_p = {"numeric": MODE_NUMERIC, "vector": MODE_VECTOR, "visualize": MODE_VISUAL}[req.mode]
     data = await _ask_json(client, model, ANALYZE_SYS.format(mode=mode_p),
                            f"Chapter file: {req.file}\n\n{ctx}")
     results = data.get("results") or []
+    # 后端确定性附加：每条结果所在段落的位置信息
+    for r in results:
+        loc = _loc_rows(rows, r.get("idx"))
+        if loc:
+            r["loc"] = loc
     reply = f"已分析 {len(results)} 条公式"
     msg = {"role": "assistant", "content": reply,
            "data": {"mode": req.mode, "results": results}, "ts": _now()}
@@ -245,7 +305,7 @@ async def formula_chat(req: FormulaChatReq):
         return {"ok": True, "reply": "本章没有找到公式。", "fixes": []}
     client, model, _ = translator.get_client(A.RT.cfg, req.provider)
     ctx = "\n\n".join(
-        f"[idx={r['idx']} kind={r['kind']}] snippet: {r['snippet']}\n"
+        f"[idx={r['idx']} heading={r['heading'] or '-'}] snippet: {r['snippet']}\n"
         f"formulas: {json.dumps(r['formulas'], ensure_ascii=False)}" for r in rows)
     hist = load_history(req.file)
     hist_txt = "\n".join(f"{m['role']}: {m['content']}" for m in hist[-8:]) or "(无)"
@@ -254,6 +314,10 @@ async def formula_chat(req: FormulaChatReq):
     data = await _ask_json(client, model, CHAT_SYS, user_msg)
     reply = str(data.get("reply") or "").strip()
     fixes = data.get("fixes") or []
+    for f in fixes:
+        loc = _loc_rows(rows, f.get("idx"))
+        if loc:
+            f["loc"] = loc
     hist.append({"role": "user", "content": req.message, "ts": _now()})
     hist.append({"role": "assistant", "content": reply, "data": {"fixes": fixes}, "ts": _now()})
     save_history(req.file, hist[-100:])

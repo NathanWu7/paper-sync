@@ -16,10 +16,36 @@ function fFormula(tex) {
   return span;
 }
 
+/* 段落位置行：段落编号 + 小节标题 + 原文开头（悬停看全文片段） */
+function fLocLine(loc) {
+  if (!loc) return null;
+  const div = document.createElement("div");
+  div.className = "f-loc";
+  div.textContent = `段落 ${loc.idx}${loc.heading ? " · " + loc.heading : ""}`;
+  if (loc.snippet) div.title = "原文开头：" + loc.snippet;
+  return div;
+}
+
+/* 跨文件位置列表（一致性分析用） */
+function fLocList(locations) {
+  const wrap = document.createElement("div");
+  wrap.className = "f-loc-list";
+  for (const l of (locations || [])) {
+    const d = document.createElement("div");
+    d.className = "f-loc-item";
+    d.textContent = `${l.file} 段 ${l.idx}${l.heading ? " · " + l.heading : ""}`;
+    if (l.snippet) d.title = "原文开头：" + l.snippet;
+    wrap.appendChild(d);
+  }
+  return wrap;
+}
+
 /* 分析结果卡片 */
 function fResultCard(r, mode) {
   const card = document.createElement("div");
   card.className = "f-card";
+  const loc = fLocLine(r.loc);
+  if (loc) card.appendChild(loc);
   const head = document.createElement("div");
   head.className = "f-formula";
   head.appendChild(fFormula(r.formula));
@@ -40,6 +66,12 @@ function fResultCard(r, mode) {
     const p = document.createElement("div");
     p.className = "f-issue";
     p.textContent = "⚠ " + r.issue;
+    card.appendChild(p);
+  }
+  if (r.where) {
+    const p = document.createElement("div");
+    p.className = "f-where";
+    p.textContent = "涉及位置：" + r.where;
     card.appendChild(p);
   }
   if (r.svg) {
@@ -67,10 +99,24 @@ function fGroupCard(g) {
   list.className = "f-group-formulas";
   for (const f of (g.formulas || [])) list.appendChild(fFormula(f));
   card.appendChild(list);
+  const locs = fLocList(g.locations);
+  if ((g.locations || []).length) {
+    const lab = document.createElement("div");
+    lab.className = "f-loc-label";
+    lab.textContent = "出现位置";
+    card.appendChild(lab);
+    card.appendChild(locs);
+  }
   if (g.issue) {
     const p = document.createElement("div");
     p.className = "f-issue";
     p.textContent = "⚠ " + g.issue;
+    card.appendChild(p);
+  }
+  if (g.where) {
+    const p = document.createElement("div");
+    p.className = "f-where";
+    p.textContent = "涉及段落：" + g.where;
     card.appendChild(p);
   }
   if (g.suggestion) {
@@ -86,6 +132,8 @@ function fGroupCard(g) {
 function fFixCard(fix) {
   const card = document.createElement("div");
   card.className = "f-card f-fix";
+  const loc = fLocLine(fix.loc);
+  if (loc) card.appendChild(loc);
   const row = document.createElement("div");
   row.className = "f-fix-row";
   const oldEl = document.createElement("span");
