@@ -98,12 +98,21 @@ button:focus-visible, select:focus-visible, .tab:focus-visible {
 }
 .cnt.warn { background: var(--vermilion); color: #FBFBF8; }
 
-.rail-foot { margin-top: auto; padding: 14px 8px 0; border-top: 1px solid var(--hairline); }
-.git { display: block; font: 400 11.5px var(--font-ui); color: var(--ink-3); white-space: normal; }
+.rail-foot {
+  margin-top: auto; padding: 12px;
+  background: rgba(33, 36, 31, .03);
+  border: 1px solid var(--hairline); border-radius: 6px;
+}
+.git { display: block; font: 500 12.5px/1.7 var(--font-ui); color: var(--ink-2); white-space: normal; }
 .git.dirty { color: var(--vermilion-2); }
 .git.clean { color: var(--jade); }
-.rail-link { display: block; margin-top: 8px; font: 400 11.5px var(--font-ui); color: var(--ink-3); text-decoration: none; }
-.rail-link:hover { color: var(--vermilion-2); text-decoration: underline; }
+.rail-link {
+  display: block; margin-top: 10px; text-align: center;
+  border: 1px solid var(--hairline-2); background: var(--sheet); color: var(--ink-2);
+  font: 500 12.5px var(--font-ui); border-radius: 5px;
+  padding: 7px 0; text-decoration: none;
+}
+.rail-link:hover { border-color: var(--vermilion); color: var(--vermilion-2); }
 
 /* ---------- 工具条 ---------- */
 .toolbar {
@@ -181,7 +190,8 @@ button:focus-visible, select:focus-visible, .tab:focus-visible {
 }
 .col-zh { cursor: pointer; font: 400 15px/1.9 var(--font-zh); color: var(--ink); text-align: justify; }
 .col-zh:hover { border-color: var(--hairline-2); }
-.col-en { font: 400 14.5px/1.75 var(--font-en); color: #3A3E37; text-align: left; }
+.col-en { cursor: pointer; font: 400 14.5px/1.75 var(--font-en); color: #3A3E37; text-align: left; }
+.col-en:hover { border-color: var(--hairline-2); }
 
 .col-en.flash { animation: en-flash 1.4s ease-out; }
 @keyframes en-flash {
@@ -220,14 +230,15 @@ button:focus-visible, select:focus-visible, .tab:focus-visible {
 }
 .mini:hover { border-color: var(--vermilion); color: var(--vermilion-2); }
 
-/* 编辑态 */
-.row.editing .col-zh {
+/* 编辑态（中/英文双向编辑，高亮当前正在编辑的那一列） */
+.row.editing .cell:has(textarea) {
   cursor: default;
   border-color: rgba(181, 58, 43, .4);
   box-shadow: inset 2px 0 0 var(--vermilion);
 }
+.row.editing .col-zh, .row.editing .col-en { cursor: default; }
 textarea {
-  width: 100%; min-height: 140px; resize: vertical;
+  width: 100%; min-height: 240px; resize: vertical;
   border: 1px solid var(--hairline-2); border-radius: 4px;
   background: var(--sheet); color: var(--ink);
   font: 400 15px/1.9 var(--font-zh);

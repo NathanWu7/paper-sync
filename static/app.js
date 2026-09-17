@@ -111,41 +111,55 @@ function buildRow(seg) {
   const en = document.createElement("div");
   en.className = "cell col-en";
   en.innerHTML = `<div class="body">${seg.en_html}</div>`;
+  en.title = "点击编辑英文（保存后写回 .tex 并回译中文）";
+  en.onclick = () => startEditor(row, seg, "en");
 
   row.append(zh, en);
   return row;
 }
 
-function updateRow(row, seg) {
+function updateRow(row, seg, flashSel = ".col-en") {
   const fresh = buildRow(seg);
   row.replaceWith(fresh);
   renderMath(fresh);
-  const enBody = fresh.querySelector(".col-en");
-  enBody.classList.add("flash");
-  setTimeout(() => enBody.classList.remove("flash"), 1200);
+  const flashCell = fresh.querySelector(flashSel);
+  if (flashCell) {
+    flashCell.classList.add("flash");
+    setTimeout(() => flashCell.classList.remove("flash"), 1200);
+  }
 }
 
-/* ---------- 编辑 ---------- */
-function startEdit(row, seg) {
+/* ---------- 编辑（中文/英文双向） ---------- */
+function startEditor(row, seg, mode) {
   if (row.classList.contains("editing")) return;
   row.classList.add("editing");
-  const zhCell = row.querySelector(".col-zh");
-  zhCell.innerHTML = "";
+  const isZh = mode === "zh";
+  const cell = row.querySelector(isZh ? ".col-zh" : ".col-en");
+  cell.innerHTML = "";
   const ta = document.createElement("textarea");
-  ta.value = seg.zh || "";
-  ta.placeholder = "输入中文（LaTeX 命令/公式保持原样），Ctrl+Enter 保存，Esc 取消";
-  zhCell.appendChild(ta);
+  ta.value = isZh ? (seg.zh || "") : seg.en;
+  ta.placeholder = isZh
+    ? "输入中文（LaTeX 命令/公式保持原样），Ctrl+Enter 保存，Esc 取消"
+    : "编辑英文 LaTeX 源码，保存后写回 .tex 并回译中文，Ctrl+Enter 保存，Esc 取消";
+  cell.appendChild(ta);
   const bar = document.createElement("div");
   bar.className = "editbar";
   const save = document.createElement("button");
   save.className = "primary";
-  save.textContent = "保存并翻译";
+  save.textContent = isZh ? "保存并翻译" : "保存并回译";
   const cancel = document.createElement("button");
   cancel.textContent = "取消";
   bar.append(save, cancel);
-  zhCell.appendChild(bar);
+  cell.appendChild(bar);
   ta.focus();
   ta.setSelectionRange(ta.value.length, ta.value.length);
+  // 编辑框贴合内容高度（有下限，输入时自动长高）
+  const fit = () => {
+    ta.style.height = "auto";
+    ta.style.height = Math.max(240, ta.scrollHeight + 8) + "px";
+  };
+  ta.addEventListener("input", fit);
+  fit();
 
   const done = () => { row.classList.remove("editing"); };
   cancel.onclick = () => { done(); updateRow(row, seg); };
@@ -155,26 +169,32 @@ function startEdit(row, seg) {
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) save.onclick();
   };
   save.onclick = async () => {
-    const zh = ta.value.trim();
-    if (!zh) { toast("中文不能为空"); return; }
-    save.disabled = true; save.textContent = "翻译中…";
+    const val = ta.value.trim();
+    if (!val) { toast(isZh ? "中文不能为空" : "英文不能为空"); return; }
+    save.disabled = true;
+    save.textContent = isZh ? "翻译中…" : "回译中…";
     try {
-      const d = await api("/api/edit", {
+      const d = await api(isZh ? "/api/edit" : "/api/edit-en", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ file: currentFile, idx: seg.idx, zh, provider }),
+        body: JSON.stringify(isZh
+          ? { file: currentFile, idx: seg.idx, zh: val, provider }
+          : { file: currentFile, idx: seg.idx, en: val, provider }),
       });
       done();
-      updateRow(row, d.segment);
+      updateRow(row, d.segment, isZh ? ".col-en" : ".col-zh");
       if (d.warnings && d.warnings.length) toast("⚠ " + d.warnings[0], 6000);
-      else toast("✓ 已翻译并写回 " + currentFile);
+      else toast("✓ " + (isZh ? "已翻译并写回 " : "已写回并回译中文 ") + currentFile);
       refreshGitStatus();
     } catch (e) {
       toast("✗ " + e.message, 6000);
-      save.disabled = false; save.textContent = "保存并翻译";
+      save.disabled = false;
+      save.textContent = isZh ? "保存并翻译" : "保存并回译";
     }
   };
 }
+
+function startEdit(row, seg) { startEditor(row, seg, "zh"); }
 
 async function doRetranslate(row, seg) {
   const badge = row.querySelector(".badge");

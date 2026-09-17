@@ -303,6 +303,53 @@ async def edit_segment(req: EditReq):
         return {"ok": True, "segment": _seg_view(frec), "warnings": warnings}
 
 
+class EditEnReq(BaseModel):
+    file: str
+    idx: int
+    en: str
+    provider: str | None = None
+
+
+@app.post("/api/edit-en")
+async def edit_en_segment(req: EditEnReq):
+    """改英文 → 写回 .tex → 中文反向同步（双向编辑的英文侧）。"""
+    _require_ready()
+    async with _edit_lock:
+        rel = req.file
+        segs = RT.state.refresh_file(rel)  # 先对齐磁盘，防止编辑过期的英文
+        if req.idx >= len(segs):
+            raise HTTPException(404, "段落不存在")
+        rec = segs[req.idx]
+        new_en = req.en.strip()
+        if not new_en:
+            raise HTTPException(400, "英文不能为空")
+
+        warnings = translator.validate_translation(rec["en"], new_en)
+
+        # 写回 tex 文件
+        content = (RT.repo / rel).read_text(encoding="utf-8")
+        pf = segmenter.parse_tex(rel, content)
+        if req.idx >= len(pf.segments):
+            raise HTTPException(500, "文件结构已变化，请刷新")
+        new_content = segmenter.replace_segment(content, pf.segments[req.idx], new_en)
+        (RT.repo / rel).write_text(new_content, encoding="utf-8")
+
+        # 重解析 + 中文反向同步
+        fresh = RT.state.refresh_file(rel)
+        frec = fresh[min(req.idx, len(fresh) - 1)]
+        zh_warn = ""
+        try:
+            frec["zh"] = await translator.translate(
+                new_en, "en2zh", RT.cfg, req.provider, macro_hint=_macro_hint())
+        except Exception as e:  # noqa: BLE001 —— 回译失败不阻塞写回
+            frec["zh"] = ""
+            zh_warn = f"中文回译失败: {e}"
+        frec["status"] = "warn" if (warnings or zh_warn) else "synced"
+        frec["warnings"] = warnings + ([zh_warn] if zh_warn else [])
+        RT.state.save()
+        return {"ok": True, "segment": _seg_view(frec), "warnings": frec["warnings"]}
+
+
 class RetranslateReq(BaseModel):
     file: str
     idx: int
