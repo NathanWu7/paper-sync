@@ -1,0 +1,21 @@
+# 本地配置(含 API key,永不提交)
+config.json
+
+# 本地状态(论文译文/对话记录,属私人内容)
+state/
+
+# 运行时产物
+cache/
+server.log
+*.log
+__pycache__/
+*.pyc
+
+# 虚拟环境
+.venv/
+venv/
+
+# 向导克隆的论文仓库
+papers/
+
+.pytest_cache/

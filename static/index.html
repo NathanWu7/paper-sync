@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PaperSync · 双语校稿</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Crect%20x='2'%20y='2'%20width='28'%20height='28'%20rx='6'%20fill='%23B53A2B'/%3E%3Crect%20x='5.5'%20y='5.5'%20width='21'%20height='21'%20rx='4'%20fill='none'%20stroke='rgba(255,255,255,0.5)'/%3E%3Ctext%20x='16'%20y='22.5'%20font-family='serif'%20font-size='17'%20fill='%23FBFBF8'%20text-anchor='middle'%3E%E7%A8%BF%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/stix-two-text@5/400.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/stix-two-text@5/400-italic.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/stix-two-text@5/600.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/noto-serif-sc@5/400.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/noto-serif-sc@5/600.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/noto-serif-sc@5/700.css">
+<link rel="stylesheet" href="/style.css?v=2">
+</head>
+<body>
+<div id="app">
+  <aside id="rail">
+    <div class="wordmark">
+      <span class="seal-mark">稿</span>
+      <div class="wordmark-text">
+        <span class="wm-title">PaperSync</span>
+        <span class="wm-sub">双语校稿</span>
+      </div>
+    </div>
+    <div class="rail-label">章节</div>
+    <nav id="tabs"></nav>
+    <div class="rail-foot">
+      <span id="gitstatus" class="git" title="git 状态"></span>
+      <a href="/setup.html" class="rail-link">更换论文 / 设置</a>
+    </div>
+  </aside>
+  <main id="main">
+    <div class="toolbar">
+      <span id="current-file" class="filepath">—</span>
+      <select id="provider" title="翻译后端"></select>
+      <button id="btn-refresh" title="重新解析 tex 文件">刷新解析</button>
+      <button id="btn-translate-file" title="把本文件未翻译/过时的段落英→中">翻译本文件</button>
+      <button id="btn-pull" title="git pull --ff-only">拉取</button>
+      <button id="btn-push" class="primary" title="commit + push 到远端">提交并推送</button>
+    </div>
+    <pre id="console" hidden></pre>
+    <div id="content">
+      <div class="row header-row">
+        <div class="cell col-zh">中文<span class="hint">点击段落编辑 · Ctrl+Enter 保存</span></div>
+        <div class="cell col-en">English<span class="hint">自动翻译 · 写回 .tex</span></div>
+      </div>
+      <div id="segments"></div>
+      <section id="chat">
+        <div class="chat-head">
+          <span class="chat-title">章节对话</span>
+          <span id="chat-file" class="chat-file"></span>
+          <span class="chat-note">修改仅作用于当前章节</span>
+          <button id="chat-clear" title="清空本章对话记录">清空</button>
+        </div>
+        <div id="chat-msgs"><div class="chat-empty">对本节提出修改要求，例如：把实验描述改得更严谨、压缩第一段、给贡献点加一句动机…</div></div>
+        <div class="chat-input-row">
+          <textarea id="chat-input" rows="2" placeholder="对本章提出修改要求…（Enter 发送，Shift+Enter 换行）"></textarea>
+          <button id="chat-send" class="primary" title="Enter 发送，Shift+Enter 换行">提出修改</button>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+<div id="toast"></div>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="/app.js?v=3"></script>
+<script src="/chat.js?v=3"></script>
+</body>
+</html>
