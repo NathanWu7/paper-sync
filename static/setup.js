@@ -132,7 +132,7 @@ $("#setup-form").addEventListener("submit", async (e) => {
   } catch (err) {
     showError(err.message);
     btn.disabled = false;
-    btn.textContent = "开始校稿";
+    btn.textContent = "校准新的稿件";
   }
 });
 
