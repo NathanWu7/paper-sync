@@ -386,6 +386,23 @@ pre.raw {
 .prov-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .prov-head input { margin: 0; accent-color: var(--vermilion); }
 .prov-name { font: 600 13.5px var(--font-en); color: var(--ink); }
+.prov-name-input {
+  flex: 1; margin: 0 !important; padding: 4px 8px !important;
+  font-size: 12.5px !important; width: auto !important;
+}
+.prov-remove {
+  border: 1px solid var(--hairline-2); background: transparent; color: var(--ink-3);
+  border-radius: 4px; width: 24px; height: 24px; line-height: 1;
+  font-size: 14px; cursor: pointer;
+}
+.prov-remove:hover { color: var(--vermilion-2); border-color: var(--vermilion); }
+.add-provider {
+  border: 1px dashed var(--hairline-2); background: transparent; color: var(--ink-2);
+  font: 500 12.5px var(--font-ui); border-radius: 6px;
+  padding: 9px 0; width: 100%; cursor: pointer; margin-top: 2px;
+}
+.add-provider:hover { border-color: var(--vermilion); color: var(--vermilion-2); background: var(--vermilion-wash); }
+.prov-note { font: 400 11.5px var(--font-ui); color: var(--ink-3); margin: 8px 2px 0; }
 .prov-field { margin-bottom: 8px; }
 .prov-field:last-child { margin-bottom: 0; }
 .prov-field input { font-size: 12px; padding: 6px 10px; }

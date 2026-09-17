@@ -22,26 +22,53 @@ async function loadDefaults() {
   const wrap = $("#providers");
   wrap.innerHTML = "";
   for (const [name, p] of Object.entries(d.providers)) {
-    const card = document.createElement("div");
-    card.className = "prov-card";
-    const active = name === d.active ? "checked" : "";
-    card.innerHTML = `
-      <label class="prov-head">
-        <input type="radio" name="active_provider" value="${name}" ${active}>
-        <span class="prov-name">${name}</span>
-      </label>
+    wrap.appendChild(buildCard(name, p, false, name === d.active));
+  }
+}
+
+function buildCard(name, p, custom, active) {
+  const card = document.createElement("div");
+  card.className = "prov-card" + (custom ? " prov-custom" : "");
+  const head = custom
+    ? `<label class="prov-head">
+         <input type="radio" name="active_provider" value="${name}" ${active ? "checked" : ""}>
+         <span class="prov-name">名称</span>
+         <input type="text" class="prov-name-input" data-prov="${name}" data-k="__name" value="${name}" placeholder="例如 my-model">
+         <button type="button" class="prov-remove" title="删除该模型">×</button>
+       </label>`
+    : `<label class="prov-head">
+         <input type="radio" name="active_provider" value="${name}" ${active ? "checked" : ""}>
+         <span class="prov-name">${name}</span>
+       </label>`;
+  card.innerHTML = head + `
       <label class="prov-field">Base URL
-        <input type="text" data-prov="${name}" data-k="base_url" value="${p.base_url || ""}">
+        <input type="text" data-prov="${name}" data-k="base_url" value="${p.base_url || ""}" placeholder="https://…/v1">
       </label>
       <label class="prov-field">Model
-        <input type="text" data-prov="${name}" data-k="model" value="${p.model || ""}">
+        <input type="text" data-prov="${name}" data-k="model" value="${p.model || ""}" placeholder="model 名称">
       </label>
       <label class="prov-field">API Key
         <input type="password" data-prov="${name}" data-k="api_key" value="${p.api_key || ""}" placeholder="sk-…">
       </label>`;
-    wrap.appendChild(card);
+  if (custom) {
+    const radio = card.querySelector('input[name="active_provider"]');
+    const nameInput = card.querySelector(".prov-name-input");
+    nameInput.addEventListener("input", () => {
+      radio.value = nameInput.value.trim();
+      nameInput.dataset.prov = nameInput.value.trim();
+      for (const inp of card.querySelectorAll("input[data-k]")) inp.dataset.prov = nameInput.value.trim();
+    });
+    card.querySelector(".prov-remove").onclick = () => card.remove();
   }
+  return card;
 }
+
+function addProvider() {
+  const name = "custom-" + (document.querySelectorAll(".prov-custom").length + 1);
+  $("#providers").appendChild(buildCard(name, {}, true, false));
+}
+
+$("#add-provider").onclick = addProvider;
 
 async function loadStatus() {
   try {
@@ -55,15 +82,23 @@ async function loadStatus() {
 
 function collectForm() {
   const providers = {};
-  for (const input of document.querySelectorAll("#providers input[data-prov]")) {
-    providers[input.dataset.prov] = providers[input.dataset.prov] || {};
-    providers[input.dataset.prov][input.dataset.k] = input.value.trim();
+  for (const card of document.querySelectorAll("#providers .prov-card")) {
+    const nameInput = card.querySelector('input[data-k="__name"]');
+    const name = nameInput
+      ? nameInput.value.trim()
+      : card.querySelector('input[name="active_provider"]').value;
+    if (!name || providers[name]) continue;  // 空名/重名跳过
+    providers[name] = {};
+    for (const input of card.querySelectorAll("input[data-k]")) {
+      if (input.dataset.k === "__name") continue;
+      providers[name][input.dataset.k] = input.value.trim();
+    }
   }
   return {
     repo_url: $("#repo-url").value.trim(),
     repo_path: $("#repo-path").value.trim(),
     github_token: $("#github-token").value.trim(),
-    active_provider: document.querySelector('input[name="active_provider"]:checked')?.value || "kimi",
+    active_provider: document.querySelector('input[name="active_provider"]:checked')?.value || "deepseek",
     providers,
   };
 }
@@ -78,6 +113,10 @@ $("#setup-form").addEventListener("submit", async (e) => {
   }
   if (body.repo_url && !/^(https:\/\/|git@)/.test(body.repo_url)) {
     showError("GitHub 链接需要以 https:// 或 git@ 开头");
+    return;
+  }
+  if (body.providers[body.active_provider] && !body.providers[body.active_provider].api_key) {
+    showError(`所选模型「${body.active_provider}」的 API Key 为空，请填写`);
     return;
   }
   btn.disabled = true;

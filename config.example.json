@@ -1,20 +1,8 @@
 {
   "repo_path": "/abs/path/to/your/paper",
   "port": 8787,
-  "active_provider": "kimi",
+  "active_provider": "deepseek",
   "providers": {
-    "kimi": {
-      "base_url": "https://api.moonshot.cn/v1",
-      "api_key_env": "MOONSHOT_API_KEY",
-      "api_key": "",
-      "model": "kimi-k3"
-    },
-    "qwen": {
-      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-      "api_key_env": "DASHSCOPE_API_KEY",
-      "api_key": "",
-      "model": "qwen-plus"
-    },
     "deepseek": {
       "base_url": "https://api.deepseek.com/v1",
       "api_key_env": "DEEPSEEK_API_KEY",

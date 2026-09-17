@@ -30,19 +30,8 @@ BASE = Path(__file__).parent
 FIG_CACHE = BASE / "cache" / "figures"
 
 # 新用户设置向导的供应商默认值（api_key 留空，由用户在向导里填）
+# 用户可在设置页「新增对话模型」添加自定义 OpenAI 兼容后端
 DEFAULT_PROVIDERS = {
-    "kimi": {
-        "base_url": "https://api.moonshot.cn/v1",
-        "api_key_env": "MOONSHOT_API_KEY",
-        "api_key": "",
-        "model": "kimi-k3",
-    },
-    "qwen": {
-        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "api_key_env": "DASHSCOPE_API_KEY",
-        "api_key": "",
-        "model": "qwen-plus",
-    },
     "deepseek": {
         "base_url": "https://api.deepseek.com/v1",
         "api_key_env": "DEEPSEEK_API_KEY",
@@ -546,7 +535,7 @@ def setup_defaults():
         key = p["api_key"] or translator._env_or_bashrc(p["api_key_env"])
         provs[name] = {"base_url": p["base_url"], "model": p["model"],
                        "api_key_env": p["api_key_env"], "api_key": key}
-    return {"providers": provs, "active": "kimi"}
+    return {"providers": provs, "active": "deepseek"}
 
 
 def _clone_error(out: str) -> str:
@@ -611,14 +600,17 @@ async def api_setup(req: SetupReq):
             "providers": {},
             "github_token": token,  # 仅存本地 config.json，供 pull/push 时注入认证头
         }
-        for name, prov in DEFAULT_PROVIDERS.items():
+        # 供应商 = 默认值 ∪ 用户在设置页自定义的模型
+        for name in sorted(set(DEFAULT_PROVIDERS) | set((req.providers or {}).keys())):
+            base = DEFAULT_PROVIDERS.get(name, {"base_url": "", "api_key_env": "",
+                                                "api_key": "", "model": ""})
             user = (req.providers or {}).get(name, {})
             cfg["providers"][name] = {
-                "base_url": user.get("base_url") or prov["base_url"],
-                "api_key_env": prov["api_key_env"],
-                "api_key": (user.get("api_key") or prov["api_key"]
-                            or translator._env_or_bashrc(prov["api_key_env"])),
-                "model": user.get("model") or prov["model"],
+                "base_url": user.get("base_url") or base["base_url"],
+                "api_key_env": base["api_key_env"],
+                "api_key": (user.get("api_key") or base["api_key"]
+                            or translator._env_or_bashrc(base["api_key_env"])),
+                "model": user.get("model") or base["model"],
             }
         if req.active_provider not in cfg["providers"]:
             raise HTTPException(400, f"未知 provider: {req.active_provider}")
